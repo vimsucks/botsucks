@@ -183,8 +183,9 @@ def commandCompany(bot: telegram.Bot, update: telegram.Update, args):
     if len(args) >= 2:
         text = ''
         company_name = args[1]
-        name, ration = process.extractOne(company_name, express_company_names, scorer=fuzz.token_sort_ratio)
-        text += '%s -- %s\n' % (name, express_company_name_to_code[name])
+        results = process.extractBests(company_name, express_company_names)
+        for name, ration in results:
+            text += '%s -- %s\n' % (name, express_company_name_to_code[name])
         bot.send_message(chat_id=update.message.chat_id,
                          text=text)
 
