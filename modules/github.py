@@ -95,25 +95,37 @@ def get_releases(repo):
     return json.loads(resp.text)
 
 
-def handle(bot: telegram.Bot, update: telegram.Update):
+def commandWatch(bot: telegram.Bot, update: telegram.Update, args):
+    repo_name = args[1]
+    insert_repo(repo_name)
+    repo = Repo.get(name=repo_name)
+    user = User.get(id=update.message.from_user.id)
+    check_release(repo, user, bot)
+    RepoWatchUser.create(user=user, repo_id=repo)
+    bot.send_message(chat_id=update.message.chat_id, text='Now you are watching repo %s' % repo_name)
+
+
+def commandUnwatch(bot: telegram.Bot, update: telegram.Update, args):
+    repo_name = args[1]
+    repo = Repo.get(name=repo_name)
+    user = User.get(id=update.message.from_user.id)
+    RepoWatchUser.delete().where(user == user, repo == repo)
+    bot.send_message(chat_id=update.message.chat_id, text='Now you are no longer watching repo %s' % repo_name)
+
+
+def handle(bot: telegram.Bot, update: telegram.Update, args):
     insert_user(update.message.from_user)
     command: str = update.message.text
     try:
-        sub_command, repo_name = command.split()[1], command.split()[2]
-        insert_repo(repo_name)
-        repo = Repo.select().where(Repo.name == command.split()[2]).first()
-        user = User.select().where(User.id == update.message.from_user.id).first()
+        sub_command = args[0]
         if sub_command == 'watch':
-            check_release(repo, user, bot)
-            RepoWatchUser.create(user=user, repo_id=repo)
-            bot.send_message(chat_id=update.message.chat_id, text='Now you are watching repo %s' % repo_name)
+            commandWatch(bot, update, args)
         elif sub_command == 'unwatch':
-            RepoWatchUser.delete().where(user == user, repo == repo)
-            bot.send_message(chat_id=update.message.chat_id, text='Now you are no longer watching repo %s' % repo_name)
+            commandUnwatch(bot, update, args)
     except IndexError:
         bot.send_message(chat_id=update.message.chat_id, text='Error! /gh_release (un)watch owner/repo')
     except peewee.IntegrityError as e:
         print(e)
-        bot.send_message(chat_id=update.message.chat_id, text='Error! you are already watching repo %s' % repo_name)
+        bot.send_message(chat_id=update.message.chat_id, text='Error! you are already watching repo %s' % args[1])
     except Exception as e:
         bot.send_message(chat_id=update.message.chat_id, text=str(e))

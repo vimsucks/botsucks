@@ -1,4 +1,5 @@
 from models import *
+from modules import express_company
 
 db.connect()
 db.create_tables([Repo,
@@ -11,3 +12,6 @@ db.create_tables([Repo,
                   ExpressPackageWatchUser,
                   ExpressCompany,
                   ], safe=True)
+
+for code, name in express_company.items():
+    ExpressCompany.create(code=code, name=name)

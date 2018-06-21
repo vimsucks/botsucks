@@ -4,10 +4,12 @@ import json
 import peewee
 import requests
 import telegram
+from fuzzywuzzy import fuzz, process
 
 from models import User, ExpressPackage, ExpressPackageWatchUser, ExpressCompany
-from config import KDNIAO_APP_KEY,KDNIAO_USER_ID
+from config import KDNIAO_APP_KEY, KDNIAO_USER_ID
 from .user import insert_user
+from .express_company import *
 
 API_URL = 'http://api.kdniao.cc/Ebusiness/EbusinessOrderHandle.aspx'
 
@@ -130,51 +132,71 @@ def callback_check_express(bot, job):
                 watch_user.delete_instance()
 
 
-def handle(bot: telegram.Bot, update: telegram.Update):
-    insert_user(update.message.from_user)
-    commands: str = update.message.text.split()
+def commandWatch(bot: telegram.Bot, update: telegram.Update, args):
     user = User.select().where(User.id == update.message.from_user.id).first()
-    sub_command = commands[1]
-    logistic_code = commands[2]
-
-    # 【开始监控】子命令： /express watch 快递单号 [描述]
-    if sub_command == 'watch':
-        description = None
-        company = None
-        if len(commands) >= 4:
-            company_code = commands[3]
-            company, _ = ExpressCompany.get_or_create(code=company_code, name=company_code)
-        try:
-            if company is None:
-                company = get_company(logistic_code)
-            package, created = ExpressPackage.get_or_create(logistic_code=logistic_code, company=company)
-            if not created:
-                return bot.send_message(chat_id=update.message.chat_id, text='您已经追踪 %s 包裹 %s' % (
-                    package.company.name, logistic_code))
-        except CompanyNotFoundException:
-            return bot.send_message(chat_id=update.message.chat_id, text='快递 %s 的承运公司不存在，请检查您的单号' % (
-                logistic_code))
-        try:
-            is_express_updated(package)
-            send_update(update.message.from_user, package, bot)
-        except PackageTraceNotFoundException:
-            return bot.send_message(chat_id=update.message.chat_id, text='没有查到快递 %s 的轨迹信息' % (
-                logistic_code))
-        except KdniaoApiException:
-            return bot.send_message(chat_id=update.message.chat_id, text='快递鸟 API 调用时发生错误，请稍后再试')
+    logistic_code = args[1]
+    company = None
+    try:
+        if len(args) >= 3:
+            company_code = args[2]
+            company = ExpressCompany.get(code=company_code)
+        if company is None:
+            company = get_company(logistic_code)
+        package, created = ExpressPackage.get_or_create(logistic_code=logistic_code, company=company)
+        if not created:
+            return bot.send_message(chat_id=update.message.chat_id, text='您已经追踪 %s 包裹 %s' % (
+                package.company.name, logistic_code))
+        is_express_updated(package)
+        send_update(update.message.from_user, package, bot)
         ExpressPackageWatchUser.get_or_create(user=user, package=package)
         bot.send_message(chat_id=update.message.chat_id,
                          text='Now you are watching express package %s %s' % (
                              package.company.name, logistic_code))
+    except peewee.DoesNotExist:
+        return bot.send_message(chat_id=update.message.chat_id, text='您输入的公司代号 %s 有误，请输入 /express company 来查看支持的公司' % (
+            company_code))
+    except CompanyNotFoundException:
+        return bot.send_message(chat_id=update.message.chat_id, text='快递 %s 的承运公司不存在，请检查您的单号' % (
+            logistic_code))
+    except PackageTraceNotFoundException:
+        return bot.send_message(chat_id=update.message.chat_id, text='没有查到快递 %s 的轨迹信息' % (
+            logistic_code))
+    except KdniaoApiException:
+        return bot.send_message(chat_id=update.message.chat_id, text='快递鸟 API 调用时发生错误，请稍后再试')
 
+
+def commandUnwatch(bot: telegram.Bot, update: telegram.Update, args):
+    user = User.select().where(User.id == update.message.from_user.id).first()
+    logistic_code = args[1]
+    try:
+        package = ExpressPackage.get(ExpressPackage.logistic_code == logistic_code)
+        ExpressPackageWatchUser.get(ExpressPackageWatchUser.user == user,
+                                    ExpressPackageWatchUser.package == package).delete_instance()
+    except peewee.DoesNotExist:
+        bot.send_message(chat_id=update.message.chat_id,
+                         text='快递 %s 不存在' % logistic_code)
+    bot.send_message(chat_id=update.message.chat_id,
+                     text='Now you are no longer watching express package %s' % logistic_code)
+
+
+def commandCompany(bot: telegram.Bot, update: telegram.Update, args):
+    if len(args) >= 2:
+        text = ''
+        company_name = args[1]
+        name, ration = process.extractOne(company_name, express_company_names, scorer=fuzz.token_sort_ratio)
+        text += '%s -- %s\n' % (name, express_company_name_to_code[name])
+        bot.send_message(chat_id=update.message.chat_id,
+                         text=text)
+
+
+def handle(bot: telegram.Bot, update: telegram.Update, args):
+    insert_user(update.message.from_user)
+    sub_command = args[0]
+    # 【开始监控】子命令： /express watch 快递单号 [描述]
+    if sub_command == 'watch':
+        commandWatch(bot, update, args)
     # 【停止监控】子命令： /express unwatch 快递单号
     elif sub_command == 'unwatch':
-        try:
-            package = ExpressPackage.get(ExpressPackage.logistic_code == logistic_code)
-            ExpressPackageWatchUser.get(ExpressPackageWatchUser.user == user,
-                                        ExpressPackageWatchUser.package == package).delete_instance()
-        except peewee.DoesNotExist:
-            bot.send_message(chat_id=update.message.chat_id,
-                             text='快递 %s 不存在' % logistic_code)
-        bot.send_message(chat_id=update.message.chat_id,
-                         text='Now you are no longer watching express package %s' % logistic_code)
+        commandUnwatch(bot, update, args)
+    elif sub_command == 'company':
+        commandCompany(bot, update, args)
