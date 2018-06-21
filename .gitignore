@@ -1,0 +1,7 @@
+.idea
+__pycache__
+*.db
+*.bak
+*.out
+venv
+test

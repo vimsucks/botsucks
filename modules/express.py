@@ -140,6 +140,7 @@ def handle(bot: telegram.Bot, update: telegram.Update):
     # 【开始监控】子命令： /express watch 快递单号 [描述]
     if sub_command == 'watch':
         description = None
+        company = None
         if len(commands) >= 4:
             company_code = commands[3]
             company, _ = ExpressCompany.get_or_create(code=company_code, name=company_code)
