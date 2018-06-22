@@ -142,13 +142,13 @@ def commandWatch(bot: telegram.Bot, update: telegram.Update, args):
             company = ExpressCompany.get(code=company_code)
         if company is None:
             company = get_company(logistic_code)
-        package, created = ExpressPackage.get_or_create(logistic_code=logistic_code, company=company)
+        package, _ = ExpressPackage.get_or_create(logistic_code=logistic_code, company=company)
+        is_express_updated(package)
+        send_update(update.message.from_user, package, bot)
+        _, created = ExpressPackageWatchUser.get_or_create(user=user, package=package)
         if not created:
             return bot.send_message(chat_id=update.message.chat_id, text='您已经追踪 %s 包裹 %s' % (
                 package.company.name, logistic_code))
-        is_express_updated(package)
-        send_update(update.message.from_user, package, bot)
-        ExpressPackageWatchUser.get_or_create(user=user, package=package)
         bot.send_message(chat_id=update.message.chat_id,
                          text='Now you are watching express package %s %s' % (
                              package.company.name, logistic_code))
