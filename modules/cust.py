@@ -73,7 +73,7 @@ def command_login(bot: telegram.Bot, update: telegram.Update, args):
             bot.send_message(user.id, '您已绑定学号 %s，无需重新绑定' % sid)
             return
         bot.send_message(user.id, '您已绑定学号 %s' % sid)
-    print(resp.text)
+        check_score_update(bot, student)
 
 
 def command_logout(bot: telegram.Bot, update: telegram.Update, args):
