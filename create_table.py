@@ -11,6 +11,9 @@ db.create_tables([Repo,
                   ExpressPackage,
                   ExpressPackageWatchUser,
                   ExpressCompany,
+                  CustStudent,
+                  CustLatestSemester,
+                  CustScore
                   ], safe=True)
 
 for code, name in express_company.items():

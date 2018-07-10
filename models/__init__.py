@@ -7,4 +7,7 @@ from .RepoWatchUser import RepoWatchUser
 from .ExpressPackage import ExpressPackage
 from .ExpressPackageWatchUser import ExpressPackageWatchUser
 from .ExpressCompany import ExpressCompany
+from .CustStudent import CustStudent
+from .CustLatestSemester import CustLatestSemester
+from .CustScore import CustScore
 from .db import db
