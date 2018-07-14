@@ -15,16 +15,15 @@ def start(bot, update):
 def main():
     updater = Updater(token=config.TELEGRAM_API_TOKEN)
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(CommandHandler('gh_release', github.handle, pass_args=True))
-    dispatcher.add_handler(CommandHandler('express', express.handle, pass_args=True))
-    dispatcher.add_handler(CommandHandler('cust', cust.handle, pass_args=True))
-    dispatcher.add_handler(CommandHandler('test', test.handle, pass_args=True))
-    # dispatcher.add_handler(user.minute_command_handler)
+    dispatcher.add_handler(GithubHandler().handler())
+    dispatcher.add_handler(ExpressHandler().handler())
+    dispatcher.add_handler(CustHandler().handler())
+    dispatcher.add_handler(HelpHandler().handler())
 
     job_queue = updater.job_queue
-    job_queue.run_repeating(github.callback_check_releases, interval=60*30, first=0)
-    job_queue.run_repeating(express.callback_check_express, interval=60*30, first=0)
-    job_queue.run_repeating(cust.callback_check_score, interval=60*30, first=0)
+    job_queue.run_repeating(*GithubJob().job())
+    job_queue.run_repeating(*ExpressJob().job())
+    job_queue.run_repeating(*CustJob().job())
 
     logging.info('Starting bot...')
     updater.start_polling()
